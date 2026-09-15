@@ -65,9 +65,15 @@ class FwsSqliteViewerEvent:
         # テキスト入力欄でEnterキーを押した際にもDBを読み込む
         self.fws_sqlite_viewer_view_obj.ent_db_path.bind("<Return>", self.ent_db_path_return)
         
-        # クリップボードコピー
-        self.fws_sqlite_viewer_view_obj.trv_schema.bind("<Control-c>", self.copy_schema_to_clipboard)
-        self.fws_sqlite_viewer_view_obj.trv_results.bind("<Control-c>", self.copy_results_to_clipboard)
+        # クリップボードコピー（データのみ）
+        for key_bind in ("<Control-c>", "<Control-C>"):
+            self.fws_sqlite_viewer_view_obj.trv_schema.bind(key_bind, self.copy_schema_to_clipboard)
+            self.fws_sqlite_viewer_view_obj.trv_results.bind(key_bind, self.copy_results_to_clipboard)
+        
+        # クリップボードコピー（ヘッダー付き）
+        for key_bind in ("<Control-Shift-c>", "<Control-Shift-C>"):
+            self.fws_sqlite_viewer_view_obj.trv_schema.bind(key_bind, self.copy_schema_with_header_to_clipboard)
+            self.fws_sqlite_viewer_view_obj.trv_results.bind(key_bind, self.copy_results_with_header_to_clipboard)
         
         # ダブルクリックでセル単体・テーブル名コピー
         self.fws_sqlite_viewer_view_obj.trv_tables.bind("<Double-1>", self.copy_table_name_to_clipboard)
@@ -264,6 +270,32 @@ class FwsSqliteViewerEvent:
             self.fws_sqlite_viewer_view_obj.clipboard_clear()
             self.fws_sqlite_viewer_view_obj.clipboard_append(table_name)
             self._set_status(f"Copied table name: '{table_name}'")
+
+    def copy_schema_with_header_to_clipboard(self, event: tk.Event) -> None:
+        """
+        Summary:
+            スキーマ詳細の選択行をヘッダー付きでコピーします。
+        UserAction:
+            スキーマ詳細リストでCtrl+Shift+Cを押下 - ヘッダー行を含む選択行のデータがクリップボードにコピーされる。
+        Args:
+            event: tk.Event - イベントオブジェクト
+        Returns:
+            None - 戻り値なし。
+        """
+        self._copy_treeview_selection_with_header(self.fws_sqlite_viewer_view_obj.trv_schema)
+
+    def copy_results_with_header_to_clipboard(self, event: tk.Event) -> None:
+        """
+        Summary:
+            クエリ結果の選択行をヘッダー付きでコピーします。
+        UserAction:
+            クエリ結果リストでCtrl+Shift+Cを押下 - ヘッダー行を含む選択行のデータがクリップボードにコピーされる。
+        Args:
+            event: tk.Event - イベントオブジェクト
+        Returns:
+            None - 戻り値なし。
+        """
+        self._copy_treeview_selection_with_header(self.fws_sqlite_viewer_view_obj.trv_results)
 
     def win_main_close(self) -> None:
         """
@@ -515,4 +547,38 @@ class FwsSqliteViewerEvent:
                 if len(display_val) > 30:
                     display_val = display_val[:27] + "..."
                 self._set_status(f"Copied cell value: '{display_val}'")
+
+    def _copy_treeview_selection_with_header(self, trv: tk.ttk.Treeview) -> None:
+        """
+        Summary:
+            Treeviewの選択行をヘッダー（列名）付きでクリップボードにコピーします。
+        Description:
+            先頭行にTreeviewのカラム見出しをタブ区切りで付与し、
+            続けて選択されたデータ行をタブ区切り（TSV）で連結してクリップボードに格納します。
+        Args:
+            trv: tk.ttk.Treeview - 対象のTreeview。
+        Returns:
+            None - 戻り値なし。
+        """
+        selected_items = trv.selection()
+        if not selected_items:
+            return
+
+        # ヘッダー行の構築（heading の表示テキストを使用）
+        columns = trv["columns"]
+        header_texts = []
+        for col in columns:
+            header_texts.append(trv.heading(col, "text"))
+        header_line = "\t".join(header_texts)
+
+        # データ行の構築
+        copied_data = []
+        for item in selected_items:
+            values = trv.item(item, 'values')
+            copied_data.append("\t".join(str(v) for v in values))
+
+        clipboard_text = header_line + "\n" + "\n".join(copied_data)
+        self.fws_sqlite_viewer_view_obj.clipboard_clear()
+        self.fws_sqlite_viewer_view_obj.clipboard_append(clipboard_text)
+        self._set_status(f"Copied {len(selected_items)} rows with header to clipboard.")
     #endregion
