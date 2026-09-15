@@ -1,0 +1,8 @@
+fws_apps_template_generator/
+├── fws_apps_template_generator.py
+├── README.md
+├── git_structure.txt
+├── constant/
+│   └── fws_apps_template_generator_const.py
+├── core/
+│   └── fws_apps_template_generator_core.py
