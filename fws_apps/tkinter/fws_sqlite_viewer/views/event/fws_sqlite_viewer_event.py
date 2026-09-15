@@ -314,10 +314,16 @@ class FwsSqliteViewerEvent:
         """
         Summary:
             テキストエリアからSQLクエリを取得します。
+            テキストが選択（ハイライト）されている場合は、その選択範囲のテキストを返します。
+            選択されていない場合は、エディタ全体のテキストを返します。
         Returns:
-            str - 入力されたSQL。
+            str - 入力（または選択）されたSQL。
         """
-        return self.fws_sqlite_viewer_view_obj.txt_sql.get("1.0", tk.END).strip()
+        sel_ranges = self.fws_sqlite_viewer_view_obj.txt_sql.tag_ranges(tk.SEL)
+        if sel_ranges:
+            return self.fws_sqlite_viewer_view_obj.txt_sql.get(sel_ranges[0], sel_ranges[1]).strip()
+        else:
+            return self.fws_sqlite_viewer_view_obj.txt_sql.get("1.0", tk.END).strip()
 
     def _set_sql_query(self, sql: str) -> None:
         """
