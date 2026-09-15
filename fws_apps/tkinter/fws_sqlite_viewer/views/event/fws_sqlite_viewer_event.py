@@ -15,7 +15,7 @@ import re
 from typing import List, Optional
 
 from fws_apps.tkinter.fws_sqlite_viewer.views.view import fws_sqlite_viewer_view
-from fws_apps.tkinter.fws_sqlite_viewer.views.view import fws_sqlite_viewer_history_view
+from fws_apps.tkinter.fws_sqlite_viewer.views.event import fws_sqlite_viewer_history_event
 from fws_apps.tkinter.fws_sqlite_viewer.views.logic import fws_sqlite_viewer_logic
 from fws_apps.tkinter.fws_sqlite_viewer.businesses.dto import fws_sqlite_viewer_dto_query_result
 from fws_apps.tkinter.fws_sqlite_viewer.businesses.dto import fws_sqlite_viewer_dto_table_schema
@@ -47,8 +47,8 @@ class FwsSqliteViewerEvent:
         self.fws_sqlite_viewer_logic_obj: fws_sqlite_viewer_logic.FwsSqliteViewerLogic = fws_sqlite_viewer_logic.FwsSqliteViewerLogic()
         """fws_sqlite_viewer_logic.FwsSqliteViewerLogic - ロジックオブジェクト"""
 
-        self.history_popup: Optional[fws_sqlite_viewer_history_view.FwsSqliteViewerHistoryView] = None
-        """Optional[FwsSqliteViewerHistoryView] - 履歴ダイアログの参照"""
+        self.history_popup: Optional[fws_sqlite_viewer_history_event.FwsSqliteViewerHistoryEvent] = None
+        """Optional[FwsSqliteViewerHistoryEvent] - 履歴ダイアログの参照"""
 
         self._bind_events()
 
@@ -640,28 +640,9 @@ class FwsSqliteViewerEvent:
         if self.history_popup is not None and self.history_popup.winfo_exists():
             self.history_popup.destroy()
 
-        # 新規Viewクラスのインスタンス化
-        self.history_popup = fws_sqlite_viewer_history_view.FwsSqliteViewerHistoryView(self.fws_sqlite_viewer_view_obj)
+        # 新規Eventクラスのインスタンス化
+        self.history_popup = fws_sqlite_viewer_history_event.FwsSqliteViewerHistoryEvent(self.fws_sqlite_viewer_view_obj)
         
-        # メインウィンドウの中央に配置
-        width, height = 600, 400
-        parent_x = self.fws_sqlite_viewer_view_obj.winfo_rootx()
-        parent_y = self.fws_sqlite_viewer_view_obj.winfo_rooty()
-        parent_width = self.fws_sqlite_viewer_view_obj.winfo_width()
-        parent_height = self.fws_sqlite_viewer_view_obj.winfo_height()
-        
-        x = parent_x + (parent_width // 2) - (width // 2)
-        y = parent_y + (parent_height // 2) - (height // 2)
-        
-        self.history_popup.geometry(f"{width}x{height}+{x}+{y}")
-        
-        # イベントバインド
-        self.history_popup.btn_close.config(command=self.history_popup.destroy)
-        
-        # データの流し込み
-        for index, (query, rows) in enumerate(history):
-            # 改行をスペースに置換して1行で表示
-            query_single_line = query.replace("\n", " ").replace("\r", "")
-            tag = "even" if index % 2 == 0 else "odd"
-            self.history_popup.trv_history.insert("", tk.END, values=(query_single_line, rows), tags=(tag,))
+        # ダイアログの表示
+        self.history_popup.show_dialog(history)
     #endregion

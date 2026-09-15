@@ -17,9 +17,11 @@ fws_sqlite_viewer/
 │   └── .gitkeep
 └── views/
     ├── event/
-    │   └── fws_sqlite_viewer_event.py
+    │   ├── fws_sqlite_viewer_event.py
+    │   └── fws_sqlite_viewer_history_event.py
     ├── logic/
-    │   └── fws_sqlite_viewer_logic.py
+    │   ├── fws_sqlite_viewer_logic.py
+    │   └── fws_sqlite_viewer_history_logic.py
     └── view/
         ├── fws_sqlite_viewer_history_view.py
         └── fws_sqlite_viewer_view.py
