@@ -8,6 +8,7 @@ Attachment:
 """
 import sqlite3
 import time
+import re
 from typing import List, Optional
 from pathlib import Path
 from fws_apps.tkinter.fws_sqlite_viewer.businesses.entity import fws_sqlite_viewer_entity
@@ -202,7 +203,28 @@ class FwsSqliteViewerBusiness:
         has_select_result = False
 
         try:
-            for q in queries:
+            query_queue = list(queries)
+            while query_queue:
+                q = query_queue.pop(0)
+                
+                # sourceコマンドの検知
+                match = re.match(r"^\s*source\s+['\"]?(.+?)['\"]?\s*$", q, re.IGNORECASE)
+                if match:
+                    file_path = match.group(1)
+                    path_obj = Path(file_path)
+                    if not path_obj.is_absolute() and self.fws_sqlite_viewer_entity_obj.current_db_path:
+                        db_dir = self.fws_sqlite_viewer_entity_obj.current_db_path.parent
+                        if (db_dir / path_obj).exists():
+                            path_obj = db_dir / path_obj
+                    if not path_obj.exists() or not path_obj.is_file():
+                        raise sqlite3.Error(f"Source file not found: {path_obj}")
+                    with open(path_obj, "r", encoding="utf-8") as f:
+                        sub_sql = f.read()
+                    if sub_sql.strip():
+                        sub_queries = self._split_queries(sub_sql)
+                        query_queue = sub_queries + query_queue
+                    continue
+
                 cursor.execute(q)
                 
                 # SELECT文の場合はデータが存在する

@@ -80,4 +80,15 @@ class FwsSqliteViewerLogic:
             None - 戻り値なし。
         """
         self.fws_sqlite_viewer_business_obj.close()
+
+    def get_tables(self) -> List[str]:
+        """
+        Summary:
+            現在のデータベースのテーブル一覧を再取得します。
+        Args:
+            なし
+        Returns:
+            List[str] - テーブル名のリスト。
+        """
+        return self.fws_sqlite_viewer_business_obj.get_tables()
     #endregion

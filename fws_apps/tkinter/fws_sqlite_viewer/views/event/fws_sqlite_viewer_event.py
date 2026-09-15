@@ -11,6 +11,7 @@ Attachment:
 import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
+import re
 from typing import List, Optional
 
 from fws_apps.tkinter.fws_sqlite_viewer.views.view import fws_sqlite_viewer_view
@@ -178,6 +179,15 @@ class FwsSqliteViewerEvent:
             
         result_dto = self.fws_sqlite_viewer_logic_obj.run_query(sql)
         self._update_results(result_dto)
+        
+        # スキーマ変更の可能性があるため、常にテーブル一覧をリフレッシュ
+        if result_dto.is_success:
+            try:
+                tables = self.fws_sqlite_viewer_logic_obj.get_tables()
+                self._update_tables_list(tables)
+            except Exception as e:
+                pass
+
 
     def trv_tables_select(self, event: tk.Event) -> None:
         """
