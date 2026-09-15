@@ -16,6 +16,7 @@ class FwsNotepadView(tk.Tk):
         テキストエリアや保存ボタンなどのウィジェットを配置します。
     """
     
+    #region Constructor
     def __init__(self) -> None:
         """
         Summary:
@@ -41,3 +42,4 @@ class FwsNotepadView(tk.Tk):
         self.btn_save: tk.Button = tk.Button(self.frm_main, text="保存 (Save)", width=20)
         """tk.Button - 保存ボタン"""
         self.btn_save.pack(side=tk.RIGHT)
+    #endregion

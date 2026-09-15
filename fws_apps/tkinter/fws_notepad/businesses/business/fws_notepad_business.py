@@ -20,6 +20,7 @@ class FwsNotepadBusiness:
         設定およびメモのファイルI/Oを行います。
     """
     
+    #region Constructor
     def __init__(self) -> None:
         """
         Summary:
@@ -33,7 +34,9 @@ class FwsNotepadBusiness:
         """
         fws_notepad_const.DATA_DIR.mkdir(parents=True, exist_ok=True)
         fws_notepad_const.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    #endregion
 
+    #region Public Methods
     def load_settings(self) -> fws_notepad_dto.FwsNotepadDto:
         """
         Summary:
@@ -129,3 +132,4 @@ class FwsNotepadBusiness:
                 f.write(dto_obj.text_content)
         except Exception as e:
             print(f"Failed to save memo: {e}")
+    #endregion
