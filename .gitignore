@@ -53,8 +53,15 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
+
 # アプリケーション設定・データ・出力ファイル
 **/data/*
 !**/data/.gitkeep
 **/output/*
 !**/output/.gitkeep
+
+# 自動生成ドキュメント
+**/docs/
+
+# テストコード
+**/tests/

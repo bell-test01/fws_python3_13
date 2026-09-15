@@ -1,0 +1,24 @@
+fws_sqlite_viewer/
+├── fws_sqlite_viewer.pyw
+├── README.md
+├── businesses/
+│   ├── business/
+│   │   └── fws_sqlite_viewer_business.py
+│   ├── dto/
+│   │   ├── fws_sqlite_viewer_dto_query_result.py
+│   │   └── fws_sqlite_viewer_dto_table_schema.py
+│   └── entity/
+│       └── fws_sqlite_viewer_entity.py
+├── constant/
+│   └── fws_sqlite_viewer_const.py
+├── data/
+│   └── .gitkeep
+├── output/
+│   └── .gitkeep
+└── views/
+    ├── event/
+    │   └── fws_sqlite_viewer_event.py
+    ├── logic/
+    │   └── fws_sqlite_viewer_logic.py
+    └── view/
+        └── fws_sqlite_viewer_view.py
