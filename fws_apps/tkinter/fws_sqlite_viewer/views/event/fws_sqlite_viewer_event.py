@@ -64,6 +64,7 @@ class FwsSqliteViewerEvent:
             None - 戻り値なし。
         """
         self.fws_sqlite_viewer_view_obj.btn_open_db.config(command=self.btn_open_db_click)
+        self.fws_sqlite_viewer_view_obj.btn_new_db.config(command=self.btn_new_db_click)
 
         self.fws_sqlite_viewer_view_obj.btn_run_query.config(command=self.btn_run_query_click)
         for key_bind in ("<Alt-x>", "<Alt-X>"):
@@ -115,6 +116,32 @@ class FwsSqliteViewerEvent:
         )
         if file_path:
             self._load_db(file_path)
+
+    def btn_new_db_click(self) -> None:
+        """
+        Summary:
+            New DBボタンクリック時の処理。
+        Description:
+            保存先を指定させ、空のDBファイルを作成して読み込みます。
+        UserAction:
+            「New DB」ボタンをクリック - ファイル保存ダイアログが開き、指定したパスに空のDBを作成して接続する。
+        Args:
+            なし
+        Returns:
+            None - 戻り値なし。
+        """
+        file_path = filedialog.asksaveasfilename(
+            title="Create New SQLite Database",
+            defaultextension=".db",
+            filetypes=[("SQLite DB", "*.db *.sqlite *.sqlite3"), ("All Files", "*.*")]
+        )
+        if file_path:
+            try:
+                with open(file_path, 'a') as f:
+                    pass
+                self._load_db(file_path)
+            except Exception as e:
+                self._set_status(f"Error creating DB: {e}", is_error=True)
 
     def ent_db_path_return(self, event: tk.Event) -> None:
         """

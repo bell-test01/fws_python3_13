@@ -21,7 +21,7 @@ FWS SQLite Viewer は、FWSアーキテクチャ（View / Event / Logic / Busine
 - 外部ライブラリ（pip install）は不要です。すべてPython標準ライブラリ（`tkinter`, `sqlite3`, `unittest`等）で動作します。
 
 ## 開発とテスト
-当プロジェクトは品質保証のため単体テストを完備しています。テストは以下のスクリプトでシナリオ順（1〜24）に実行・確認できます。
+当プロジェクトは品質保証のため単体テストを完備しています。テストは以下のスクリプトでシナリオ順（1〜25）に実行・確認できます。
 ```powershell
 python fws_apps/tkinter/fws_sqlite_viewer/tests/run_all_tests.py
 ```

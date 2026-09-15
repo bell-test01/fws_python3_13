@@ -68,6 +68,9 @@ class FwsSqliteViewerView(tk.Tk):
         self.btn_open_db: ttk.Button = ttk.Button(self.frm_top, text="Open DB")
         self.btn_open_db.pack(side=tk.LEFT)
         
+        self.btn_new_db: ttk.Button = ttk.Button(self.frm_top, text="New DB")
+        self.btn_new_db.pack(side=tk.LEFT, padx=(5, 0))
+        
         # 中央: 左右分割 PanedWindow
         self.pw_main: ttk.PanedWindow = ttk.PanedWindow(self.frm_main, orient=tk.HORIZONTAL)
         self.pw_main.pack(fill=tk.BOTH, expand=True)
