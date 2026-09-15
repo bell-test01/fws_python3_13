@@ -9,6 +9,7 @@ Attachment:
 import sqlite3
 import time
 import re
+import csv
 from typing import List, Optional
 from pathlib import Path
 from fws_apps.tkinter.fws_sqlite_viewer.businesses.entity import fws_sqlite_viewer_entity
@@ -206,9 +207,13 @@ class FwsSqliteViewerBusiness:
             query_queue = list(queries)
             while query_queue:
                 q = query_queue.pop(0)
+                # 独自コマンド検知のために、コメントを除去した文字列を作成
+                cleaned_q = re.sub(r"--.*$", "", q, flags=re.MULTILINE)
+                cleaned_q = re.sub(r"/\*.*?\*/", "", cleaned_q, flags=re.DOTALL)
+                cleaned_q = cleaned_q.strip()
                 
                 # sourceコマンドの検知
-                match = re.match(r"^\s*source\s+['\"]?(.+?)['\"]?\s*$", q, re.IGNORECASE)
+                match = re.match(r"^\s*source\s+['\"]?(.+?)['\"]?\s*$", cleaned_q, re.IGNORECASE)
                 if match:
                     file_path = match.group(1)
                     path_obj = Path(file_path)
@@ -223,6 +228,52 @@ class FwsSqliteViewerBusiness:
                     if sub_sql.strip():
                         sub_queries = self._split_queries(sub_sql)
                         query_queue = sub_queries + query_queue
+                    continue
+
+                # loadコマンドの検知
+                match_load = re.match(r"^\s*load\s+['\"]?(.+?)['\"]?\s+into\s+([a-zA-Z0-9_]+)(?:\s+(with\s+header|no\s+header))?\s*$", cleaned_q, re.IGNORECASE)
+                if match_load:
+                    file_path = match_load.group(1)
+                    table_name = match_load.group(2)
+                    header_opt = match_load.group(3)
+                    
+                    path_obj = Path(file_path)
+                    if not path_obj.is_absolute() and self.fws_sqlite_viewer_entity_obj.current_db_path:
+                        db_dir = self.fws_sqlite_viewer_entity_obj.current_db_path.parent
+                        if (db_dir / path_obj).exists():
+                            path_obj = db_dir / path_obj
+                    if not path_obj.exists() or not path_obj.is_file():
+                        raise sqlite3.Error(f"Load file not found: {path_obj}")
+
+                    delimiter = '\t' if path_obj.suffix.lower() == '.tsv' else ','
+                    
+                    with open(path_obj, "r", encoding="utf-8") as f:
+                        reader = csv.reader(f, delimiter=delimiter)
+                        
+                        # デフォルトはヘッダースキップ（with header）。明示的に 'no header' が指定された場合はスキップしない
+                        if header_opt and header_opt.lower() == 'no header':
+                            pass
+                        else:
+                            try:
+                                next(reader)
+                            except StopIteration:
+                                pass
+                                
+                        try:
+                            first_row = next(reader)
+                        except StopIteration:
+                            result_dto.execution_history.append((q, 0))
+                            continue
+                            
+                        placeholders = ",".join(["?"] * len(first_row))
+                        insert_sql = f"INSERT INTO {table_name} VALUES ({placeholders})"
+                        
+                        def row_generator():
+                            yield first_row
+                            yield from reader
+                            
+                        cursor.executemany(insert_sql, row_generator())
+                        result_dto.execution_history.append((q, cursor.rowcount))
                     continue
 
                 cursor.execute(q)
