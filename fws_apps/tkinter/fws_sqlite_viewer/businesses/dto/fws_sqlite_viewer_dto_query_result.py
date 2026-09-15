@@ -37,6 +37,8 @@ class FwsSqliteViewerDtoQueryResult:
         """Optional[str] - エラー発生時のメッセージ"""
         self.execution_time_ms: float = 0.0
         """float - 実行にかかった時間（ミリ秒）"""
+        self.execution_history: List[Tuple[str, int]] = []
+        """List[Tuple[str, int]] - 複数クエリ実行時の履歴（クエリ文字列と処理件数のタプル）"""
     #endregion
 
     #region Public Methods

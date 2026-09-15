@@ -11,9 +11,10 @@ Attachment:
 import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 from fws_apps.tkinter.fws_sqlite_viewer.views.view import fws_sqlite_viewer_view
+from fws_apps.tkinter.fws_sqlite_viewer.views.view import fws_sqlite_viewer_history_view
 from fws_apps.tkinter.fws_sqlite_viewer.views.logic import fws_sqlite_viewer_logic
 from fws_apps.tkinter.fws_sqlite_viewer.businesses.dto import fws_sqlite_viewer_dto_query_result
 from fws_apps.tkinter.fws_sqlite_viewer.businesses.dto import fws_sqlite_viewer_dto_table_schema
@@ -45,6 +46,9 @@ class FwsSqliteViewerEvent:
         self.fws_sqlite_viewer_logic_obj: fws_sqlite_viewer_logic.FwsSqliteViewerLogic = fws_sqlite_viewer_logic.FwsSqliteViewerLogic()
         """fws_sqlite_viewer_logic.FwsSqliteViewerLogic - ロジックオブジェクト"""
 
+        self.history_popup: Optional[fws_sqlite_viewer_history_view.FwsSqliteViewerHistoryView] = None
+        """Optional[FwsSqliteViewerHistoryView] - 履歴ダイアログの参照"""
+
         self._bind_events()
 
     def _bind_events(self) -> None:
@@ -59,7 +63,11 @@ class FwsSqliteViewerEvent:
             None - 戻り値なし。
         """
         self.fws_sqlite_viewer_view_obj.btn_open_db.config(command=self.btn_open_db_click)
+
         self.fws_sqlite_viewer_view_obj.btn_run_query.config(command=self.btn_run_query_click)
+        for key_bind in ("<Alt-x>", "<Alt-X>"):
+            self.fws_sqlite_viewer_view_obj.txt_sql.bind(key_bind, self.btn_run_query_click)
+
         self.fws_sqlite_viewer_view_obj.trv_tables.bind("<<TreeviewSelect>>", self.trv_tables_select)
         
         # テキスト入力欄でEnterキーを押した際にもDBを読み込む
@@ -82,8 +90,7 @@ class FwsSqliteViewerEvent:
         
         # SQLエディタのオートインデントとショートカット
         self.fws_sqlite_viewer_view_obj.txt_sql.bind("<Return>", self.txt_sql_return)
-        self.fws_sqlite_viewer_view_obj.txt_sql.bind("<Alt-x>", self.btn_run_query_click)
-        
+
         self.fws_sqlite_viewer_view_obj.protocol("WM_DELETE_WINDOW", self.win_main_close)
     #endregion
 
@@ -454,6 +461,9 @@ class FwsSqliteViewerEvent:
             
         self._set_status(status_msg, is_error=False)
 
+        if hasattr(result_dto, 'execution_history') and len(result_dto.execution_history) > 1:
+            self._show_execution_history_dialog(result_dto.execution_history)
+
     def _set_status(self, msg: str, is_error: bool = False) -> None:
         """
         Summary:
@@ -581,4 +591,40 @@ class FwsSqliteViewerEvent:
         self.fws_sqlite_viewer_view_obj.clipboard_clear()
         self.fws_sqlite_viewer_view_obj.clipboard_append(clipboard_text)
         self._set_status(f"Copied {len(selected_items)} rows with header to clipboard.")
+
+    def _show_execution_history_dialog(self, history: List[tuple]) -> None:
+        """
+        Summary:
+            複数クエリの実行履歴をポップアップで表示します。
+        Args:
+            history: List[tuple] - クエリ文字列と処理件数のタプルリスト。
+        """
+        # 既存のウィンドウがあれば破棄して再表示する
+        if self.history_popup is not None and self.history_popup.winfo_exists():
+            self.history_popup.destroy()
+
+        # 新規Viewクラスのインスタンス化
+        self.history_popup = fws_sqlite_viewer_history_view.FwsSqliteViewerHistoryView(self.fws_sqlite_viewer_view_obj)
+        
+        # メインウィンドウの中央に配置
+        width, height = 600, 400
+        parent_x = self.fws_sqlite_viewer_view_obj.winfo_rootx()
+        parent_y = self.fws_sqlite_viewer_view_obj.winfo_rooty()
+        parent_width = self.fws_sqlite_viewer_view_obj.winfo_width()
+        parent_height = self.fws_sqlite_viewer_view_obj.winfo_height()
+        
+        x = parent_x + (parent_width // 2) - (width // 2)
+        y = parent_y + (parent_height // 2) - (height // 2)
+        
+        self.history_popup.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # イベントバインド
+        self.history_popup.btn_close.config(command=self.history_popup.destroy)
+        
+        # データの流し込み
+        for index, (query, rows) in enumerate(history):
+            # 改行をスペースに置換して1行で表示
+            query_single_line = query.replace("\n", " ").replace("\r", "")
+            tag = "even" if index % 2 == 0 else "odd"
+            self.history_popup.trv_history.insert("", tk.END, values=(query_single_line, rows), tags=(tag,))
     #endregion

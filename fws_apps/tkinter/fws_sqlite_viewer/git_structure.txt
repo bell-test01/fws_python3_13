@@ -21,4 +21,5 @@ fws_sqlite_viewer/
     ├── logic/
     │   └── fws_sqlite_viewer_logic.py
     └── view/
+        ├── fws_sqlite_viewer_history_view.py
         └── fws_sqlite_viewer_view.py

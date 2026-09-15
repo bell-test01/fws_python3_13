@@ -131,13 +131,53 @@ class FwsSqliteViewerBusiness:
         finally:
             cursor.close()
 
+    def _split_queries(self, sql_script: str) -> List[str]:
+        """
+        Summary:
+            クエリ文字列をセミコロンで分割します。
+        Description:
+            シングルクォーテーション('')またはダブルクォーテーション("")に囲まれた
+            セミコロンは区切り文字として扱いません。
+        Args:
+            sql_script: str - 分割するSQL文字列全体。
+        Returns:
+            List[str] - 分割された個別のSQL文のリスト。空文字は除外します。
+        """
+        queries = []
+        current_query = []
+        in_single_quote = False
+        in_double_quote = False
+        
+        for char in sql_script:
+            if char == "'" and not in_double_quote:
+                in_single_quote = not in_single_quote
+                current_query.append(char)
+            elif char == '"' and not in_single_quote:
+                in_double_quote = not in_double_quote
+                current_query.append(char)
+            elif char == ';' and not in_single_quote and not in_double_quote:
+                queries.append("".join(current_query).strip())
+                current_query = []
+            else:
+                current_query.append(char)
+                
+        # 最後のセミコロンがない場合のクエリを追加
+        if current_query:
+            last_query = "".join(current_query).strip()
+            if last_query:
+                queries.append(last_query)
+                
+        # 空のクエリを除外して返す
+        return [q for q in queries if q]
+
     def execute_query(self, sql_query: str) -> fws_sqlite_viewer_dto_query_result.FwsSqliteViewerDtoQueryResult:
         """
         Summary:
-            任意のSQLクエリを実行します。
+            任意のSQLクエリ（複数クエリ対応）を実行します。
         Description:
-            SELECT系であれば結果行を取得し、更新系であれば影響行数を取得します。
-            エラー発生時はメッセージをDTOに設定して返します。
+            セミコロン区切りの複数クエリを順番に実行します。
+            最後に実行されたSELECT系の結果行、およびすべてのクエリの実行履歴（件数）を返します。
+            エラー発生時は全体をロールバックしてメッセージを返します。
         Args:
             sql_query: str - 実行するSQL文。
         Returns:
@@ -149,20 +189,44 @@ class FwsSqliteViewerBusiness:
             result_dto.error_message = "Not connected to a database."
             return result_dto
             
+        queries = self._split_queries(sql_query)
+        if not queries:
+            result_dto.error_message = "Query is empty."
+            return result_dto
+
         start_time: float = time.perf_counter()
         cursor: sqlite3.Cursor = self.connection.cursor()
+        
+        last_columns = []
+        last_rows = []
+        has_select_result = False
+
         try:
-            cursor.execute(sql_query)
+            for q in queries:
+                cursor.execute(q)
+                
+                # SELECT文の場合はデータが存在する
+                if cursor.description:
+                    last_columns = [description[0] for description in cursor.description]
+                    last_rows = cursor.fetchall()
+                    has_select_result = True
+                    result_dto.execution_history.append((q, len(last_rows)))
+                else:
+                    # INSERT, UPDATE, DELETE などの場合は変更行数を取得
+                    rowcount = cursor.rowcount
+                    result_dto.execution_history.append((q, rowcount))
             
-            # SELECT文の場合はデータが存在する
-            if cursor.description:
-                result_dto.columns = [description[0] for description in cursor.description]
-                result_dto.rows = cursor.fetchall()
-                result_dto.rowcount = len(result_dto.rows)
+            # すべて成功した場合のみコミット（トランザクション制御されていない場合を想定）
+            self.connection.commit()
+            
+            if has_select_result:
+                result_dto.columns = last_columns
+                result_dto.rows = last_rows
+                result_dto.rowcount = len(last_rows)
             else:
-                # INSERT, UPDATE, DELETE などの場合は変更行数を取得しコミット
+                # 最後のクエリのrowcount、または更新系の合計値を設定
+                # （ただし詳細履歴は execution_history にあるため、ここでは最後のrowcountを代表としてセット）
                 result_dto.rowcount = cursor.rowcount
-                self.connection.commit()
                 
         except sqlite3.Error as e:
             result_dto.error_message = str(e)
