@@ -89,6 +89,11 @@ class FwsSqliteViewerView(tk.Tk):
         self.trv_tables.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
         scr_tables.pack(side=tk.RIGHT, fill=tk.Y)
         
+        # テーブル用右クリックメニュー
+        self.menu_tables: tk.Menu = tk.Menu(self.trv_tables, tearoff=0)
+        self.menu_tables.add_command(label="Refresh", command=lambda: None) # Event層で上書き
+        self.menu_tables.add_command(label="Detach Database", command=lambda: None) # Event層で上書き
+        
         # 左下: テーブルスキーマ詳細
         self.frm_schema: ttk.LabelFrame = ttk.LabelFrame(self.pw_left, text="Schema Details")
         self.pw_left.add(self.frm_schema, weight=1)

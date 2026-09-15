@@ -10,7 +10,7 @@ import sqlite3
 import time
 import re
 import csv
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pathlib import Path
 from fws_apps.tkinter.fws_sqlite_viewer.businesses.entity import fws_sqlite_viewer_entity
 from fws_apps.tkinter.fws_sqlite_viewer.businesses.dto import fws_sqlite_viewer_dto_query_result
@@ -78,36 +78,90 @@ class FwsSqliteViewerBusiness:
             self.connection = None
         self.fws_sqlite_viewer_entity_obj.current_db_path = None
 
-    def get_tables(self) -> List[str]:
+    def get_tables(self) -> Dict[str, List[str]]:
         """
         Summary:
-            データベース内のテーブル一覧を取得します。
+            接続されているすべてのデータベース内のテーブル一覧を取得します。
         Description:
-            sqlite_masterからtype='table'のnameを抽出して返します。
+            PRAGMA database_list でDB一覧を取得し、各DBのsqlite_masterからテーブルを抽出して返します。
         Args:
             なし
         Returns:
-            List[str] - テーブル名のリスト。
+            Dict[str, List[str]] - データベース名(エイリアス)をキーとするテーブル名のリスト。
         """
         if not self.connection:
-            return []
+            return {}
             
         cursor: sqlite3.Cursor = self.connection.cursor()
         try:
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
-            rows = cursor.fetchall()
-            return [row[0] for row in rows]
+            # 接続されている全データベースのリストを取得
+            cursor.execute("PRAGMA database_list;")
+            db_list = cursor.fetchall()
+            
+            tables_dict: Dict[str, List[str]] = {}
+            for db_seq, db_name, db_file in db_list:
+                # 各データベースのテーブル一覧を取得
+                # temp などの内部DBや、スキーマがないDBもあるため例外対応
+                try:
+                    cursor.execute(f"SELECT name FROM {db_name}.sqlite_master WHERE type='table' ORDER BY name;")
+                    tables = [row[0] for row in cursor.fetchall()]
+                    tables_dict[db_name] = tables
+                except sqlite3.Error:
+                    pass
+            return tables_dict
         finally:
             cursor.close()
 
-    def get_table_schema(self, table_name: str) -> List[fws_sqlite_viewer_dto_table_schema.FwsSqliteViewerDtoTableSchema]:
+    def attach_db(self, db_path: str, alias: str) -> None:
+        """
+        Summary:
+            指定されたデータベースを現在のアタッチメントとして追加します。
+        Description:
+            ATTACH DATABASE 文を発行して接続に新しいDBを追加します。
+        Args:
+            db_path: str - データベースファイルのパス
+            alias: str - アタッチ時のエイリアス名
+        Returns:
+            None - 戻り値なし。
+        """
+        if not self.connection:
+            return
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(f"ATTACH DATABASE ? AS {alias};", (db_path,))
+            self.connection.commit()
+        finally:
+            cursor.close()
+
+    def detach_db(self, alias: str) -> None:
+        """
+        Summary:
+            指定されたエイリアスのデータベースをデタッチします。
+        Description:
+            DETACH DATABASE 文を発行して、アタッチされたDBを切り離します。
+        Args:
+            alias: str - デタッチするエイリアス名
+        Returns:
+            None - 戻り値なし。
+        """
+        if not self.connection:
+            return
+        cursor = self.connection.cursor()
+        try:
+            cursor.execute(f"DETACH DATABASE {alias};")
+            self.connection.commit()
+        finally:
+            cursor.close()
+
+    def get_table_schema(self, table_name: str, alias: str = "main") -> List[fws_sqlite_viewer_dto_table_schema.FwsSqliteViewerDtoTableSchema]:
         """
         Summary:
             指定されたテーブルのスキーマ情報を取得します。
         Description:
-            PRAGMA table_info() を使用してカラム定義等を取得します。
+            PRAGMA <alias>.table_info() を使用してカラム定義等を取得します。
         Args:
             table_name: str - スキーマを取得するテーブル名。
+            alias: str - データベースエイリアス名（デフォルト: "main"）。
         Returns:
             List[fws_sqlite_viewer_dto_table_schema.FwsSqliteViewerDtoTableSchema] - スキーマDTOのリスト。
         """
@@ -116,7 +170,7 @@ class FwsSqliteViewerBusiness:
             
         cursor: sqlite3.Cursor = self.connection.cursor()
         try:
-            cursor.execute(f"PRAGMA table_info('{table_name}');")
+            cursor.execute(f"PRAGMA {alias}.table_info('{table_name}');")
             rows = cursor.fetchall()
             schema_list: List[fws_sqlite_viewer_dto_table_schema.FwsSqliteViewerDtoTableSchema] = []
             for row in rows:

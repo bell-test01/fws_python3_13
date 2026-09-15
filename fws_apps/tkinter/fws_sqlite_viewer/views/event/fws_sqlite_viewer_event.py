@@ -12,6 +12,8 @@ import tkinter as tk
 from tkinter import filedialog
 from pathlib import Path
 import re
+import json
+import os
 from typing import List, Optional
 
 from fws_apps.tkinter.fws_sqlite_viewer.views.view import fws_sqlite_viewer_view
@@ -50,7 +52,39 @@ class FwsSqliteViewerEvent:
         self.history_popup: Optional[fws_sqlite_viewer_history_event.FwsSqliteViewerHistoryEvent] = None
         """Optional[FwsSqliteViewerHistoryEvent] - 履歴ダイアログの参照"""
 
+        self._session_file: Path = Path(__file__).resolve().parent.parent.parent / "data" / "session.json"
+
         self._bind_events()
+        self._restore_session()
+
+    def _restore_session(self) -> None:
+        """
+        Summary:
+            起動時に session.json を読み込み、前回接続していたDBを復元します。
+        """
+        if not self._session_file.exists():
+            return
+            
+        try:
+            with open(self._session_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                
+            main_db = data.get("main_db")
+            if main_db and Path(main_db).exists():
+                self._load_db(main_db, is_main=True)
+                
+                attached_dbs = data.get("attached_dbs", [])
+                for att in attached_dbs:
+                    path = att.get("path")
+                    alias = att.get("alias")
+                    if path and alias and Path(path).exists():
+                        self.fws_sqlite_viewer_logic_obj.attach_db(path, alias)
+                
+                # 全てアタッチし終わったらUI更新
+                tables = self.fws_sqlite_viewer_logic_obj.get_tables()
+                self._update_tables_list(tables)
+        except Exception as e:
+            self._set_status(f"Error restoring session: {e}", is_error=True)
 
     def _bind_events(self) -> None:
         """
@@ -71,6 +105,7 @@ class FwsSqliteViewerEvent:
             self.fws_sqlite_viewer_view_obj.txt_sql.bind(key_bind, self.btn_run_query_click)
 
         self.fws_sqlite_viewer_view_obj.trv_tables.bind("<<TreeviewSelect>>", self.trv_tables_select)
+        self.fws_sqlite_viewer_view_obj.trv_tables.bind("<Button-3>", self.show_tables_context_menu)
         
         # テキスト入力欄でEnterキーを押した際にもDBを読み込む
         self.fws_sqlite_viewer_view_obj.ent_db_path.bind("<Return>", self.ent_db_path_return)
@@ -220,14 +255,6 @@ class FwsSqliteViewerEvent:
         """
         Summary:
             テーブル一覧でアイテムが選択された時の処理。
-        Description:
-            選択されたテーブルのスキーマを表示し、SELECT * クエリをセットして実行します。
-        UserAction:
-            テーブル一覧のテーブル名を選択 - そのテーブルのスキーマを表示し、全件取得クエリを準備する。
-        Args:
-            event: tk.Event - イベントオブジェクト
-        Returns:
-            None - 戻り値なし。
         """
         trv = self.fws_sqlite_viewer_view_obj.trv_tables
         selection = trv.selection()
@@ -235,11 +262,19 @@ class FwsSqliteViewerEvent:
             return
             
         item_id = selection[0]
+        parent_id = trv.parent(item_id)
+        if not parent_id:
+            # DBノードが選択された場合はスキーマをクリア
+            self._update_schema_list([])
+            return
+            
         table_name = trv.item(item_id, "text")
+        values = trv.item(item_id, "values")
+        alias = values[0] if values else "main"
         
         # スキーマ表示
         try:
-            schema_list = self.fws_sqlite_viewer_logic_obj.read_table_schema(table_name)
+            schema_list = self.fws_sqlite_viewer_logic_obj.read_table_schema(table_name, alias)
             self._update_schema_list(schema_list)
         except Exception as e:
             self._set_status(f"Error reading table: {e}", is_error=True)
@@ -345,16 +380,9 @@ class FwsSqliteViewerEvent:
         """
         Summary:
             ウィンドウ終了時の処理。
-        Description:
-            DB接続をクローズし、画面を破棄します。
-        UserAction:
-            ウィンドウの「閉じる（×）」ボタンをクリック - DB接続を切断しアプリケーションを終了する。
-        Args:
-            なし
-        Returns:
-            None - 戻り値なし。
         """
         try:
+            self._save_session()
             self.fws_sqlite_viewer_logic_obj.close_db()
         except Exception as e:
             print(f"Error in win_main_close: {e}")
@@ -413,21 +441,21 @@ class FwsSqliteViewerEvent:
         self.fws_sqlite_viewer_view_obj.txt_sql.delete("1.0", tk.END)
         self.fws_sqlite_viewer_view_obj.txt_sql.insert("1.0", sql)
 
-    def _update_tables_list(self, tables: List[str]) -> None:
+    def _update_tables_list(self, tables_dict: dict) -> None:
         """
         Summary:
-            テーブル一覧ツリーを更新します。
+            テーブル一覧ツリーを階層化して更新します。
         Args:
-            tables: List[str] - テーブル名のリスト。
-        Returns:
-            None - 戻り値なし。
+            tables_dict: dict - DB名をキー、テーブルリストを値とする辞書。
         """
         trv: tk.ttk.Treeview = self.fws_sqlite_viewer_view_obj.trv_tables
         for item in trv.get_children():
             trv.delete(item)
             
-        for table in tables:
-            trv.insert("", tk.END, text=table, values=(table,))
+        for db_alias, tables in tables_dict.items():
+            parent_id = trv.insert("", tk.END, iid=f"db_{db_alias}", text=db_alias, open=True)
+            for table in tables:
+                trv.insert(parent_id, tk.END, iid=f"tbl_{db_alias}_{table}", text=table, values=(db_alias, table))
 
     def _update_schema_list(self, schema_list: List[fws_sqlite_viewer_dto_table_schema.FwsSqliteViewerDtoTableSchema]) -> None:
         """
@@ -517,15 +545,18 @@ class FwsSqliteViewerEvent:
         else:
             self.fws_sqlite_viewer_view_obj.lbl_status.config(foreground="black")
 
-    def _load_db(self, db_path: str) -> None:
+    def _load_db(self, db_path: str, is_main: bool = False) -> None:
         """
         Summary:
-            DBに接続し、テーブル一覧を更新します。
+            DBに接続またはアタッチし、テーブル一覧を更新します。
         Args:
             db_path: str - DBファイルパス。
-        Returns:
-            None - 戻り値なし。
+            is_main: bool - メインDBとして読み込むかどうか。
         """
+        if not is_main and self.fws_sqlite_viewer_logic_obj.fws_sqlite_viewer_business_obj.connection is not None:
+            self._attach_db(db_path)
+            return
+
         try:
             tables = self.fws_sqlite_viewer_logic_obj.load_db(db_path)
             self._set_db_path(db_path)
@@ -537,9 +568,24 @@ class FwsSqliteViewerEvent:
             
         except Exception as e:
             self._set_status(f"Error connecting to DB: {e}", is_error=True)
-            self._update_tables_list([])
+            self._update_tables_list({})
             self._clear_results()
             self.fws_sqlite_viewer_logic_obj.close_db()
+
+    def _attach_db(self, db_path: str) -> None:
+        try:
+            db_name = Path(db_path).stem
+            # 英数字とアンダースコア以外を置換して安全なエイリアスにする
+            safe_name = re.sub(r'[^a-zA-Z0-9_]', '_', db_name)
+            alias = f"{safe_name}_{len(self.fws_sqlite_viewer_logic_obj.get_tables())}"
+            
+            self.fws_sqlite_viewer_logic_obj.attach_db(db_path, alias)
+            self._set_status(f"Attached DB as {alias}")
+            
+            tables = self.fws_sqlite_viewer_logic_obj.get_tables()
+            self._update_tables_list(tables)
+        except Exception as e:
+            self._set_status(f"Error attaching DB: {e}", is_error=True)
 
     def _copy_treeview_selection(self, trv: tk.ttk.Treeview) -> None:
         """
@@ -645,4 +691,99 @@ class FwsSqliteViewerEvent:
         
         # ダイアログの表示
         self.history_popup.show_dialog(history)
+
+    def show_tables_context_menu(self, event: tk.Event) -> None:
+        """
+        Summary:
+            テーブル一覧の右クリック時にコンテキストメニューを表示します。
+        Description:
+            クリックされたノードがDBエイリアス（ルートノード）である場合のみ、
+            Refresh や Detach メニューを表示します。
+        UserAction:
+            テーブル一覧のDBノード上で右クリック - RefreshおよびDetachメニューが表示される。
+        Args:
+            event: tk.Event - イベントオブジェクト
+        Returns:
+            None - 戻り値なし。
+        """
+        trv = self.fws_sqlite_viewer_view_obj.trv_tables
+        item = trv.identify_row(event.y)
+        if not item:
+            return
+            
+        trv.selection_set(item)
+        parent_id = trv.parent(item)
+        if not parent_id:
+            alias = trv.item(item, "text")
+            menu = self.fws_sqlite_viewer_view_obj.menu_tables
+            menu.entryconfigure("Refresh", command=self._refresh_db_tables)
+            if alias != "main":
+                menu.entryconfigure("Detach Database", state="normal", command=lambda a=alias: self._detach_db(a))
+            else:
+                menu.entryconfigure("Detach Database", state="disabled")
+            menu.post(event.x_root, event.y_root)
+
+    def _refresh_db_tables(self) -> None:
+        """
+        Summary:
+            データベース一覧とテーブル一覧を再読み込みします。
+        Args:
+            なし
+        Returns:
+            None - 戻り値なし。
+        """
+        tables = self.fws_sqlite_viewer_logic_obj.get_tables()
+        self._update_tables_list(tables)
+
+    def _detach_db(self, alias: str) -> None:
+        """
+        Summary:
+            指定されたエイリアスのデータベースをデタッチします。
+        Args:
+            alias: str - デタッチするDBのエイリアス名
+        Returns:
+            None - 戻り値なし。
+        """
+        try:
+            self.fws_sqlite_viewer_logic_obj.detach_db(alias)
+            self._set_status(f"Detached DB: {alias}")
+            self._refresh_db_tables()
+        except Exception as e:
+            self._set_status(f"Error detaching DB: {e}", is_error=True)
+
+    def _save_session(self) -> None:
+        """
+        Summary:
+            現在の接続状態を session.json に保存します。
+        Description:
+            メインDBおよびアタッチされているDBのパスとエイリアスを保存します。
+            未接続の場合はファイルを削除します。
+        Args:
+            なし
+        Returns:
+            None - 戻り値なし。
+        """
+        try:
+            if not self.fws_sqlite_viewer_logic_obj.fws_sqlite_viewer_business_obj.connection:
+                if self._session_file.exists():
+                    self._session_file.unlink()
+                return
+                
+            cursor = self.fws_sqlite_viewer_logic_obj.fws_sqlite_viewer_business_obj.connection.cursor()
+            cursor.execute("PRAGMA database_list;")
+            db_list = cursor.fetchall()
+            
+            main_db = None
+            attached_dbs = []
+            
+            for seq, name, file in db_list:
+                if name == "main":
+                    main_db = file
+                elif name != "temp" and file:
+                    attached_dbs.append({"alias": name, "path": file})
+                    
+            with open(self._session_file, "w", encoding="utf-8") as f:
+                json.dump({"main_db": main_db, "attached_dbs": attached_dbs}, f, indent=2)
+        except Exception as e:
+            print(f"Error saving session: {e}")
     #endregion
