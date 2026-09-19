@@ -121,7 +121,7 @@ class FwsSqliteViewerView(tk.Tk):
         self.frm_sql: ttk.LabelFrame = ttk.LabelFrame(self.pw_right, text="SQL Query Editor")
         self.pw_right.add(self.frm_sql, weight=1)
         
-        self.txt_sql: tk.Text = tk.Text(self.frm_sql, wrap=tk.NONE, height=10)
+        self.txt_sql: tk.Text = tk.Text(self.frm_sql, wrap=tk.NONE, height=10, undo=True)
         scr_sql_y: ttk.Scrollbar = ttk.Scrollbar(self.frm_sql, orient=tk.VERTICAL, command=self.txt_sql.yview)
         scr_sql_x: ttk.Scrollbar = ttk.Scrollbar(self.frm_sql, orient=tk.HORIZONTAL, command=self.txt_sql.xview)
         self.txt_sql.configure(yscrollcommand=scr_sql_y.set, xscrollcommand=scr_sql_x.set)

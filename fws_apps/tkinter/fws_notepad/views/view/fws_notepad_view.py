@@ -35,7 +35,7 @@ class FwsNotepadView(tk.Tk):
         """tk.Frame - メインフレーム"""
         self.frm_main.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        self.txt_memo: tk.Text = tk.Text(self.frm_main, wrap=tk.WORD)
+        self.txt_memo: tk.Text = tk.Text(self.frm_main, wrap=tk.WORD, undo=True)
         """tk.Text - メモ入力用テキストエリア"""
         self.txt_memo.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
         
