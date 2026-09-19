@@ -25,14 +25,14 @@ def main():
         None - 戻り値なし。
     """
     # ヘルプメッセージや使用例を見やすくするための設定
-    description_text = (
+    description_text: str = (
         "=========================================\n"
         " FWS Apps Template Generator\n"
         "=========================================\n"
         "fwsプロジェクトのファイル・フォルダ構成を自動生成するツールです。\n"
         "GUI/CLIのテンプレート展開、または git_structure.txt からの生成をサポートします。"
     )
-    epilog_text = (
+    epilog_text: str = (
         "【使用例】\n"
         "  # GUIテンプレートを使ってアプリを生成する場合\n"
         "  python fws_apps_template_generator.py -p ./my_new_app -n my_new_app\n\n"
@@ -42,7 +42,7 @@ def main():
         "  python fws_apps_template_generator.py -p ./custom_app -n custom_app -f ./git_structure.txt"
     )
 
-    parser = argparse.ArgumentParser(
+    parser: argparse.ArgumentParser = argparse.ArgumentParser(
         description=description_text,
         epilog=epilog_text,
         formatter_class=argparse.RawTextHelpFormatter
@@ -58,15 +58,15 @@ def main():
         parser.print_help(sys.stderr)
         sys.exit(1)
 
-    args = parser.parse_args()
+    args: argparse.Namespace = parser.parse_args()
 
     # 出力先パスの検証と作成
-    output_path = Path(args.path).resolve()
+    output_path: Path = Path(args.path).resolve()
     if not output_path.exists():
         print(f"Creating output root directory: {output_path}")
         output_path.mkdir(parents=True, exist_ok=True)
 
-    fws_apps_template_generator_core_obj = FwsAppsTemplateGeneratorCore(
+    fws_apps_template_generator_core_obj: FwsAppsTemplateGeneratorCore = FwsAppsTemplateGeneratorCore(
         output_path=str(output_path),
         app_name=args.app_name,
         template_type=args.type

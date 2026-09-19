@@ -6,7 +6,6 @@ Description:
 Attachment:
     docs_fws_apps_template_generator/final_specification.md
 """
-import os
 
 """list[str] - ユーザー指定の除外リスト"""
 EXCLUDE_LIST = [
